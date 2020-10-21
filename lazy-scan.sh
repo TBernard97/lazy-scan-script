@@ -25,7 +25,7 @@ gobust(){
     if [[ " ${array[@]} " =~ "80" ||  " ${array[@]} " =~ "443" || " ${array[@]} " =~ "8080" ]]; then
         if [ ! -z "$wordlist" ] 
             then
-            gobuster -u http://${host} -w $wordlist -o $GOBUSTER_OUTPUT
+            gobuster dir -u http://${host} -w $wordlist -o $GOBUSTER_OUTPUT
         elif [  -z "$wordlist" ]  
             then
                 echo "[ERROR] Need a wordlist for gobuster. Use -w flag."

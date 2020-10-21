@@ -3,7 +3,7 @@
 This a wrapper to automate a large amount of the initial enumeration when doing CTF's or Pentests. 
 
 ## Installation
-Ideally the operating system should be one of the popular pentesting Linux distrobutions (Kali, Parrot, Black Arch etc.)
+Ideally the operating system should be one of the popular pentesting Linux distributions (Kali, Parrot, Black Arch etc.)
 
 However the tools can be easily download on other Linux distro's:
 
