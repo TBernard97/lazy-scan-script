@@ -7,6 +7,8 @@ NMAP_TIME=-T4
 GOBUSTER_OUTPUT="./gobuster.txt"
 NMAP_OUTPUT="./nmap.txt"
 NMAP_PARSE_OUTPUT="./nmap_parse.txt"
+ASSETFINDER_DIRECTORY="/home/nomad/Tools/assetfinder/"
+HTTPROBE_DIRECTORY="/home/nomad/Tools/httprobe/"
 ###################################################################
 ###################################################################
 
@@ -17,9 +19,20 @@ usage(){
     echo "[?] -g: gobuster if 80, 443, or 8080 open."
     echo "[?] -w: wordlist for gobuster."
     echo "[?] -s: smbmap if 445 open."
+    echo "[?] -r: perform automated recon against a domain"
     exit 1
 }
+
+initial_scan(){
+
+    nmap -Pn -oX nmap.xml $NMAP_TIME $host
+    OPEN_PORTS=$(${PATH_TO_NMAP_PARSE_OUTPUT} nmap.xml ports)
+    echo "[!] Open ports found: ${OPEN_PORTS}."
+}
+
 gobust(){
+
+    initial_scan
     IFS=',' read -r -a array <<< $OPEN_PORTS
 
     if [[ " ${array[@]} " =~ "80" ||  " ${array[@]} " =~ "443" || " ${array[@]} " =~ "8080" ]]; then
@@ -37,6 +50,7 @@ gobust(){
 }
 
 smap(){
+    initial_scan
     IFS=',' read -r -a array <<< $OPEN_PORTS
 
     if [[ " ${array[@]} " =~ "445" ]]; then
@@ -47,9 +61,9 @@ smap(){
 }
 
 version_scan(){
-
+    initial_scan
     echo "[+] Doing version scan on open ports"
-    nmap -sS -sV -p$OPEN_PORTS -oN $NMAP_OUTPUT -oX nmap.xml $host
+    sudo nmap -sS -sV -p$OPEN_PORTS -oN $NMAP_OUTPUT -oX nmap.xml $host
     
     if test -f $NMAP_PARSE_OUTPUT; then
         rm $NMAP_PARSE_OUTPUT
@@ -84,14 +98,51 @@ version_scan(){
 
 }
 
-while getopts h:vgw:s flag
+recon(){
+    #Used several lines of code from https://pastebin.com/MhE6zXVt
+
+    if [ ! -d "$host" ]; then
+	    mkdir $host
+    fi
+
+    if [ ! -d "$host/recon" ]; then
+        mkdir "$host/recon"
+    fi
+
+     if [ ! -d "$host/recon" ]; then
+        mkdir "$host/recon"
+    fi
+
+     if [ ! -d "$host/recon/httprobe" ]; then
+        mkdir "$host/recon/httprobe"
+    fi
+
+    echo "[+] Starting intial recon with assetfinder"
+    "$ASSETFINDER_DIRECTORY/assetfinder" $host >> $host/recon/final.txt
+
+    echo "[+] Running additional subdomain checks with amass, this may take a while.."
+    amass enum -d $host >> $host/recon/f.txt
+    sort -u $host/recon/f.txt >> $host/recon/final.txt
+    rm $host/recon/f.txt
+
+    echo "[+] Final checks for alive domains"
+    cat $host/recon/final.txt | sort -u | "$HTTPROBE_DIRECTORY/httprobe" -s -p https:443 | sed 's/https\?:\/\///' | tr -d ':443' >> $host/recon/httprobe/a.txt
+    sort -u $host/recon/httprobe/a.txt > $host/recon/httprobe/alive.txt
+    rm $host/recon/httprobe/a.txt
+
+
+}
+
+while getopts h:rvgw:s flag
 do
     case "${flag}" in
         h ) host=${OPTARG};;
         v ) version=1;;
         g ) gobust=1;;
         w ) wordlist=${OPTARG};;
-        s)  smbmap_flag=1;;
+        s ) smbmap_flag=1;;
+        r ) recon=1;;
+        n ) initial=1;;
         \?) echo "[?] Invalid flag"
     esac
 done
@@ -102,11 +153,9 @@ if [  -z "$host" ]; then
     usage
 fi
 
-nmap -Pn -oX nmap.xml $NMAP_TIME $host
-OPEN_PORTS=$(${PATH_TO_NMAP_PARSE_OUTPUT} nmap.xml ports)
-echo "[!] Open ports found: ${OPEN_PORTS}."
-
-
+if [[ "${initial}" -eq 1 ]]; then
+    initial_scan
+fi
 
 if [[ "${version}" -eq 1 ]]; then
     version_scan
@@ -121,4 +170,6 @@ if [[ "${smbmap_flag}" -eq 1 ]]; then
     smap
 fi
 
-
+if [[ "${recon}" -eq 1 ]]; then
+    recon
+fi
